@@ -64,5 +64,45 @@ function getTopPriorityTasks(tasks, limit = 5) {
   return sortedTasks.slice(0, limit);
 }
 
+function shouldMarkAsAbandoned(task) {
+  /**
+   * Determine if a task should be marked as abandoned.
+   * 
+   * Business rule: Tasks are abandoned if they are:
+   * - Overdue for more than 7 days
+   * - NOT high priority (priority < 3, meaning LOW or MEDIUM)
+   * - NOT already completed or abandoned
+   * 
+   * @param {Task} task - Task to evaluate
+   * @returns {boolean} - True if task should be marked abandoned
+   */
+  if (!task.dueDate) {
+    // Tasks without due dates cannot be overdue
+    return false;
+  }
+
+  // Check if task is already done or abandoned
+  if (task.status === TaskStatus.DONE || task.status === TaskStatus.ABANDONED) {
+    return false;
+  }
+
+  // Calculate days overdue
+  const now = new Date();
+  const daysOverdue = Math.ceil((now - task.dueDate) / (1000 * 60 * 60 * 24));
+
+  // Check if overdue more than 7 days
+  if (daysOverdue <= 7) {
+    return false;
+  }
+
+  // Check if high priority (3 or higher) - if so, don't abandon
+  if (task.priority >= 3) {
+    return false;
+  }
+
+  // All conditions met: overdue >7 days, not high priority, not done/abandoned
+  return true;
+}
+
 // Export functions for testing
-module.exports = { calculateTaskScore, sortTasksByImportance, getTopPriorityTasks };
+module.exports = { calculateTaskScore, sortTasksByImportance, getTopPriorityTasks, shouldMarkAsAbandoned };

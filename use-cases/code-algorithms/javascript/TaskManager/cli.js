@@ -1,4 +1,5 @@
 // cli.js
+const fs = require('fs');
 const { program } = require('commander');
 const { TaskManager } = require('./app');
 const { TaskStatus, TaskPriority } = require('./models');
@@ -32,6 +33,52 @@ const formatTask = (task) => {
     `  ${dueStr} | ${tagsStr}\n` +
     `  Created: ${task.createdAt.toISOString().split('T')[0]} ${task.createdAt.toTimeString().split(' ')[0]}`
   );
+};
+
+// Function to escape CSV fields that contain commas or quotes
+const escapeCsvField = (field) => {
+  if (field === null || field === undefined) {
+    return '';
+  }
+  const stringField = String(field);
+  // If field contains comma, quote, or newline, wrap in quotes and escape internal quotes
+  if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+    return `"${stringField.replace(/"/g, '""')}"`;
+  }
+  return stringField;
+};
+
+// Function to convert tasks array to CSV format
+const tasksToCsv = (tasks) => {
+  if (tasks.length === 0) {
+    return 'ID,Title,Description,Priority,Status,Due Date,Tags,Created At,Completed At\n';
+  }
+
+  // CSV Header
+  const headers = ['ID', 'Title', 'Description', 'Priority', 'Status', 'Due Date', 'Tags', 'Created At', 'Completed At'];
+  
+  // Convert each task to a CSV row
+  const rows = tasks.map(task => {
+    const dueDate = task.dueDate ? task.dueDate.toISOString().split('T')[0] : '';
+    const completedAt = task.completedAt ? task.completedAt.toISOString().split('T')[0] : '';
+    const tagsStr = task.tags.join('; ');
+    const createdAt = task.createdAt.toISOString().split('T')[0];
+    
+    return [
+      escapeCsvField(task.id),
+      escapeCsvField(task.title),
+      escapeCsvField(task.description),
+      escapeCsvField(task.priority),
+      escapeCsvField(task.status),
+      escapeCsvField(dueDate),
+      escapeCsvField(tagsStr),
+      escapeCsvField(createdAt),
+      escapeCsvField(completedAt)
+    ].join(',');
+  });
+
+  // Combine headers and rows
+  return headers.join(',') + '\n' + rows.join('\n');
 };
 
 const taskManager = new TaskManager();
@@ -174,6 +221,77 @@ program
     });
     console.log(`Overdue tasks: ${stats.overdue}`);
     console.log(`Completed in last 7 days: ${stats.completedLastWeek}`);
+  });
+
+program
+  .command('export [filename]')
+  .description('Export tasks to CSV file')
+  .option('-s, --status <status>', 'Filter by status')
+  .option('-p, --priority <priority>', 'Filter by priority')
+  .option('-o, --overdue', 'Export only overdue tasks')
+  .action((filename, options) => {
+    // Use provided filename or default to tasks-export.csv
+    const outputFile = filename || 'tasks-export.csv';
+    
+    // Get filtered tasks (same logic as list command)
+    const tasks = taskManager.listTasks(options.status, options.priority, options.overdue);
+    
+    if (tasks.length === 0) {
+      console.log('No tasks found matching the criteria. Nothing to export.');
+      return;
+    }
+    
+    try {
+      // Convert tasks to CSV format
+      const csvContent = tasksToCsv(tasks);
+      
+      // Write to file
+      fs.writeFileSync(outputFile, csvContent, 'utf8');
+      
+      console.log(`✓ Successfully exported ${tasks.length} task(s) to ${outputFile}`);
+    } catch (error) {
+      console.error(`Failed to export tasks: ${error.message}`);
+    }
+  });
+
+program
+  .command('cleanup')
+  .description('Mark old overdue tasks as abandoned (overdue >7 days, priority <3)')
+  .option('-d, --dry-run', 'Preview what would be abandoned without making changes')
+  .action((options) => {
+    if (options.dryRun) {
+      // Dry run - show what would happen without making changes
+      console.log('🔍 DRY RUN MODE - Checking for tasks to abandon...\n');
+      
+      const oldOverdueTasks = taskManager.storage.getOverdueTasksOlderThan(7);
+      const { shouldMarkAsAbandoned } = require('./task_priority');
+      const tasksToAbandon = oldOverdueTasks.filter(task => shouldMarkAsAbandoned(task));
+      
+      if (tasksToAbandon.length === 0) {
+        console.log('✓ No tasks would be abandoned.');
+      } else {
+        console.log(`⚠️  ${tasksToAbandon.length} task(s) would be marked as abandoned:\n`);
+        tasksToAbandon.forEach(task => {
+          const daysOverdue = Math.ceil((new Date() - task.dueDate) / (1000 * 60 * 60 * 24));
+          console.log(`  - ${task.id.substr(0, 8)}: "${task.title}"`);
+          console.log(`    Priority: ${task.priority}, Overdue: ${daysOverdue} days`);
+          console.log(`    Due: ${task.dueDate.toISOString().split('T')[0]}\n`);
+        });
+        console.log('💡 Run "node cli.js cleanup" (without --dry-run) to apply these changes.');
+      }
+    } else {
+      // Execute the cleanup
+      const result = taskManager.markAbandonedTasks();
+      
+      if (result.count === 0) {
+        console.log('✓ No tasks were abandoned. All tasks are current or high priority.');
+      } else {
+        console.log(`✓ Successfully marked ${result.count} task(s) as abandoned:\n`);
+        result.tasks.forEach(task => {
+          console.log(`  - ${task.id}: "${task.title}" (${task.daysOverdue} days overdue)`);
+        });
+      }
+    }
   });
 
 program.parse(process.argv);

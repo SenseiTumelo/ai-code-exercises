@@ -1,0 +1,5 @@
+ID,Title,Description,Priority,Status,Due Date,Tags,Created At,Completed At
+819a455c-bad1-4a51-94e2-e99f45673b5a,Learn Node.js,Study async/await patterns,3,todo,2026-05-01,learning; nodejs,2026-04-14,
+bf81c7ea-9d15-4439-af95-2ce269127288,Complete project documentation,Write comprehensive docs for the TaskManager,3,todo,2026-04-30,documentation; work,2026-04-23,
+16ae4d59-403f-4b34-b4e3-b139963db331,Code review for PR #42,Review and comment on recent PRs,2,todo,,work; review,2026-04-23,
+38ba4cfc-3c4c-483b-8d34-f134d65cd8e9,Buy groceries,"Milk, eggs, bread",1,todo,,shopping,2026-04-23,

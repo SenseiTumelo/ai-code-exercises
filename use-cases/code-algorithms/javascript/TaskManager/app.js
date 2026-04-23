@@ -1,6 +1,7 @@
 // app.js
 const { Task, TaskPriority, TaskStatus } = require('./models');
 const { TaskStorage } = require('./storage');
+const { shouldMarkAsAbandoned } = require('./task_priority');
 
 class TaskManager {
   constructor(storagePath = 'tasks.json') {
@@ -146,6 +147,36 @@ class TaskManager {
       byPriority: priorityCounts,
       overdue: overdueTasks.length,
       completedLastWeek: completedRecently.length
+    };
+  }
+
+  markAbandonedTasks() {
+    /**
+     * Mark tasks as abandoned if they meet the criteria:
+     * - Overdue for more than 7 days
+     * - Priority is LOW or MEDIUM (< 3)
+     * - Not already DONE or ABANDONED
+     * 
+     * @returns {Object} - Result with count of abandoned tasks and details
+     */
+    const oldOverdueeTasks = this.storage.getOverdueTasksOlderThan(7);
+    const tasksToAbandon = oldOverdueeTasks.filter(task => shouldMarkAsAbandoned(task));
+
+    const abandonedTasksInfo = [];
+
+    tasksToAbandon.forEach(task => {
+      this.updateTaskStatus(task.id, TaskStatus.ABANDONED);
+      abandonedTasksInfo.push({
+        id: task.id.substr(0, 8),
+        title: task.title,
+        priority: task.priority,
+        daysOverdue: Math.ceil((new Date() - task.dueDate) / (1000 * 60 * 60 * 24))
+      });
+    });
+
+    return {
+      count: tasksToAbandon.length,
+      tasks: abandonedTasksInfo
     };
   }
 }

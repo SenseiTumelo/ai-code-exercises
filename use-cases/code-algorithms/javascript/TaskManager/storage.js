@@ -96,6 +96,22 @@ class TaskStorage {
   getOverdueTasks() {
     return Object.values(this.tasks).filter(task => task.isOverdue());
   }
+
+  getOverdueTasksOlderThan(days) {
+    /**
+     * Get all tasks that are overdue for more than N days.
+     * 
+     * @param {number} days - Number of days overdue
+     * @returns {Array} - Array of overdue tasks older than N days
+     */
+    return Object.values(this.tasks).filter(task => {
+      if (!task.dueDate || task.status === TaskStatus.DONE) {
+        return false;
+      }
+      const daysOverdue = Math.ceil((new Date() - task.dueDate) / (1000 * 60 * 60 * 24));
+      return daysOverdue > days;
+    });
+  }
 }
 
 module.exports = { TaskStorage };
